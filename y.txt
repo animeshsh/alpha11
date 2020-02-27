@@ -1,0 +1,690 @@
+//scannner
+%{
+	#include <stdio.h>
+	#include <string.h>
+	#include "y.tab.h"
+
+	#define ANSI_COLOR_RED		"\x1b[31m"
+	#define ANSI_COLOR_GREEN	"\x1b[32m"
+	#define ANSI_COLOR_YELLOW	"\x1b[33m"
+	#define ANSI_COLOR_BLUE		"\x1b[34m"
+	#define ANSI_COLOR_MAGENTA	"\x1b[35m"
+	#define ANSI_COLOR_CYAN		"\x1b[36m"
+	#define ANSI_COLOR_RESET	"\x1b[0m"
+
+	struct symboltable
+	{
+		char name[100];
+		char class[100];
+		char type[100];
+		char value[100];
+		int lineno;
+		int length;
+	}ST[1001];
+
+	struct constanttable
+	{
+		char name[100];
+		char type[100];
+		int length;
+	}CT[1001];
+
+	int hash(char *str)
+	{
+		int value = 0;
+		for(int i = 0 ; i < strlen(str) ; i++)
+		{
+			value = 10*value + (str[i] - 'A');
+			value = value % 1001;
+			while(value < 0)
+				value = value + 1001;
+		}
+		return value;
+	}
+
+	int lookupST(char *str)
+	{
+		int value = hash(str);
+		if(ST[value].length == 0)
+		{
+			return 0;
+		}
+		else if(strcmp(ST[value].name,str)==0)
+		{	
+			return 1;
+		}
+		else
+		{
+			for(int i = value + 1 ; i!=value ; i = (i+1)%1001)
+			{
+				if(strcmp(ST[i].name,str)==0)
+				{
+					return 1;
+				}
+			}
+			return 0;
+		}
+	}
+
+	int lookupCT(char *str)
+	{
+		int value = hash(str);
+		if(CT[value].length == 0)
+			return 0;
+		else if(strcmp(CT[value].name,str)==0)
+			return 1;
+		else
+		{
+			for(int i = value + 1 ; i!=value ; i = (i+1)%1001)
+			{
+				if(strcmp(CT[i].name,str)==0)
+				{
+					return 1;
+				}
+			}
+			return 0;
+		}
+	}
+
+	void insertST(char *str1, char *str2)
+	{
+		if(lookupST(str1))
+		{
+			return;
+		}
+		else
+		{
+			int value = hash(str1);
+			if(ST[value].length == 0)
+			{
+				strcpy(ST[value].name,str1);
+				strcpy(ST[value].class,str2);
+				ST[value].length = strlen(str1);
+				insertSTline(str1,yylineno);
+				return;
+			}
+
+			int pos = 0;
+
+			for (int i = value + 1 ; i!=value ; i = (i+1)%1001)
+			{
+				if(ST[i].length == 0)
+				{
+					pos = i;
+					break;
+				}
+			}
+
+			strcpy(ST[pos].name,str1);
+			strcpy(ST[pos].class,str2);
+			ST[pos].length = strlen(str1);
+		}
+	}
+
+	void insertSTtype(char *str1, char *str2)
+	{
+		for(int i = 0 ; i < 1001 ; i++)
+		{
+			if(strcmp(ST[i].name,str1)==0)
+			{
+				strcpy(ST[i].type,str2);
+			}
+		}
+    }
+
+	void insertSTvalue(char *str1, char *str2)
+	{
+		for(int i = 0 ; i < 1001 ; i++)
+		{
+			if(strcmp(ST[i].name,str1)==0)
+			{
+				strcpy(ST[i].value,str2);
+			}
+		}
+	}
+
+	void insertSTline(char *str1, int line)
+	{
+		for(int i = 0 ; i < 1001 ; i++)
+		{
+			if(strcmp(ST[i].name,str1)==0)
+			{
+				ST[i].lineno = line;
+			}
+		}
+	}
+
+	void insertCT(char *str1, char *str2)
+	{
+		if(lookupCT(str1))
+			return;
+		else
+		{
+			int value = hash(str1);
+			if(CT[value].length == 0)
+			{
+				strcpy(CT[value].name,str1);
+				strcpy(CT[value].type,str2);
+				CT[value].length = strlen(str1);
+				return;
+			}
+
+			int pos = 0;
+
+			for (int i = value + 1 ; i!=value ; i = (i+1)%1001)
+			{
+				if(CT[i].length == 0)
+				{
+					pos = i;
+					break;
+				}
+			}
+
+			strcpy(CT[pos].name,str1);
+			strcpy(CT[pos].type,str2);
+			CT[pos].length = strlen(str1);
+		}
+	}
+
+	void printST()
+	{
+		printf("%10s | %15s | %10s | %10s | %10s\n","SYMBOL", "CLASS", "TYPE","VALUE", "LINE NO");
+		for(int i=0;i<81;i++) {
+			printf("-");
+		}
+		printf("\n");
+		for(int i = 0 ; i < 1001 ; i++)
+		{
+			if(ST[i].length == 0)
+			{
+				continue;
+			}
+			printf("%10s | %15s | %10s | %10s | %10d\n",ST[i].name, ST[i].class, ST[i].type, ST[i].value, ST[i].lineno);
+		}
+    }
+
+
+	void printCT()
+	{
+		printf("%10s | %15s\n","NAME", "TYPE");
+		for(int i=0;i<81;i++) {
+			printf("-");
+		}
+		printf("\n");
+		for(int i = 0 ; i < 1001 ; i++)
+		{
+			if(CT[i].length == 0)
+				continue;
+
+			printf("%10s | %15s\n",CT[i].name, CT[i].type);
+		}
+	}
+	char curid[20];
+	char curtype[20];
+	char curval[20];
+
+%}
+
+DE "define"
+IN "include"
+
+%%
+\n 	{yylineno++;}
+([#][" "]*({IN})[ ]*([<]?)([A-Za-z]+)[.]?([A-Za-z]*)([>]?))/["\n"|\/|" "|"\t"]	{ }
+([#][" "]*({DE})[" "]*([A-Za-z]+)(" ")*[0-9]+)/["\n"|\/|" "|"\t"]				{ } 
+\/\/(.*)																		{ }
+\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/										{ }
+[ \n\t] ;
+";"				{ return(';'); }
+","				{ return(','); }
+("{")			{ return('{'); }
+("}")			{ return('}'); }
+"("				{ return('('); }
+")"				{ return(')'); }
+("["|"<:")		{ return('['); }
+("]"|":>") 		{ return(']'); }
+":"				{ return(':'); }
+"."				{ return('.'); }
+
+"char"			{ strcpy(curtype,yytext); insertST(yytext, "Keyword"); return CHAR;}
+"double"		{ strcpy(curtype,yytext); insertST(yytext, "Keyword"); return DOUBLE;}
+"else"			{ insertSTline(yytext, yylineno); insertST(yytext, "Keyword"); return ELSE;}
+"float"			{ strcpy(curtype,yytext); insertST(yytext, "Keyword");return FLOAT;}
+"while"			{ insertST(yytext, "Keyword"); return WHILE;}
+"do"			{ insertST(yytext, "Keyword"); return DO;}
+"for"			{ insertST(yytext, "Keyword"); return FOR;}
+"if"			{ insertST(yytext, "Keyword"); return IF;}
+"int"			{ strcpy(curtype,yytext); insertST(yytext, "Keyword");return INT;}
+"long"			{ strcpy(curtype,yytext); insertST(yytext, "Keyword");  return LONG;}
+"return"		{ insertST(yytext, "Keyword");  return RETURN;}
+"short"			{ strcpy(curtype,yytext); insertST(yytext, "Keyword");  return SHORT;}
+"signed"		{ strcpy(curtype,yytext); insertST(yytext, "Keyword");  return SIGNED;}
+"sizeof" 		{ insertST(yytext, "Keyword");  return SIZEOF;}
+"struct"		{ strcpy(curtype,yytext); insertST(yytext, "Keyword");  return STRUCT;}
+"unsigned"		{ insertST(yytext, "Keyword");  return UNSIGNED;}
+"void"			{ strcpy(curtype,yytext); insertST(yytext, "Keyword");  return VOID;}
+"break"			{ insertST(yytext, "Keyword");  return BREAK;}
+
+
+"++"			{ return increment_operator; }
+"--"			{ return decrement_operator; }
+"<<"			{ return leftshift_operator; }
+">>"			{ return rightshift_operator; }
+"<="			{ return lessthan_assignment_operator; }
+"<"				{ return lessthan_operator; }
+">="			{ return greaterthan_assignment_operator; }
+">"				{ return greaterthan_operator; }
+"=="			{ return equality_operator; }
+"!="			{ return inequality_operator; }
+"&&"			{ return AND_operator; }
+"||"			{ return OR_operator; }
+"^"				{ return caret_operator; }
+"*="			{ return multiplication_assignment_operator; }
+"/="			{ return division_assignment_operator; }
+"%="			{ return modulo_assignment_operator; }
+"+="			{ return addition_assignment_operator; }
+"-="			{ return subtraction_assignment_operator; }
+"<<="			{ return leftshift_assignment_operator; }
+">>="			{ return rightshift_assignment_operator; }
+"&="			{ return AND_assignment_operator; }
+"^="			{ return XOR_assignment_operator; }
+"|="			{ return OR_assignment_operator; }
+"&"				{ return amp_operator; }
+"!"				{ return exclamation_operator; }
+"~"				{ return tilde_operator; }
+"-"				{ return subtract_operator; }
+"+"				{ return add_operator; }
+"*"				{ return multiplication_operator; }
+"/"				{ return division_operator; }
+"%"				{ return modulo_operator; }
+"|"				{ return pipe_operator; }
+\=				{ return assignment_operator;}
+
+\"[^\n]*\"/[;|,|\)] 			{strcpy(curval,yytext); insertCT(yytext,"String Constant"); return string_constant;}
+\'[A-Z|a-z]\'/[;|,|\)|:] 		{strcpy(curval,yytext); insertCT(yytext,"Character Constant"); return character_constant;}
+[a-z|A-Z]([a-z|A-Z]|[0-9])*/\[ 	{strcpy(curid,yytext); insertST(yytext, "Array Identifier");  return identifier;}
+[1-9][0-9]*|0/[;|,|" "|\)|<|>|=|\!|\||&|\+|\-|\*|\/|\%|~|\]|\}|:|\n|\t|\^] 	{strcpy(curval,yytext); insertCT(yytext, "Number Constant"); return integer_constant;}
+([0-9]*)\.([0-9]+)/[;|,|" "|\)|<|>|=|\!|\||&|\+|\-|\*|\/|\%|~|\n|\t|\^] 	{strcpy(curval,yytext); insertCT(yytext, "Floating Constant"); return float_constant;}
+[A-Za-z_][A-Za-z_0-9]* {strcpy(curid,yytext);insertST(yytext,"Identifier");  return identifier;}
+
+(.?) {
+		if(yytext[0]=='#')
+		{
+			printf("Error in Pre-Processor directive at line no. %d\n",yylineno);
+		}
+		else if(yytext[0]=='/')
+		{
+			printf("ERR_UNMATCHED_COMMENT at line no. %d\n",yylineno);
+		}
+		else if(yytext[0]=='"')
+		{
+			printf("ERR_INCOMPLETE_STRING at line no. %d\n",yylineno);
+		}
+		else
+		{
+			printf("ERROR at line no. %d\n",yylineno);
+		}
+		printf("%s\n", yytext);
+		return 0;
+}
+
+%%
+
+//parser
+%{
+	void yyerror(char* s);
+	int yylex();
+	#include "stdio.h"
+	#include "stdlib.h"
+	#include "ctype.h"
+	#include "string.h"
+	void ins();
+	void insV();
+	int flag=0;
+
+	#define ANSI_COLOR_RED		"\x1b[31m"
+	#define ANSI_COLOR_GREEN	"\x1b[32m"
+	#define ANSI_COLOR_CYAN		"\x1b[36m"
+	#define ANSI_COLOR_RESET	"\x1b[0m"
+
+	extern char curid[20];
+	extern char curtype[20];
+	extern char curval[20];
+
+%}
+
+%nonassoc IF
+%token INT CHAR FLOAT DOUBLE LONG SHORT SIGNED UNSIGNED STRUCT
+%token RETURN MAIN
+%token VOID
+%token WHILE FOR DO 
+%token BREAK
+%token ENDIF
+%expect 2
+
+%token identifier
+%token integer_constant string_constant float_constant character_constant
+
+%nonassoc ELSE
+
+%right leftshift_assignment_operator rightshift_assignment_operator
+%right XOR_assignment_operator OR_assignment_operator
+%right AND_assignment_operator modulo_assignment_operator
+%right multiplication_assignment_operator division_assignment_operator
+%right addition_assignment_operator subtraction_assignment_operator
+%right assignment_operator
+
+%left OR_operator
+%left AND_operator
+%left pipe_operator
+%left caret_operator
+%left amp_operator
+%left equality_operator inequality_operator
+%left lessthan_assignment_operator lessthan_operator greaterthan_assignment_operator greaterthan_operator
+%left leftshift_operator rightshift_operator 
+%left add_operator subtract_operator
+%left multiplication_operator division_operator modulo_operator
+
+%right SIZEOF
+%right tilde_operator exclamation_operator
+%left increment_operator decrement_operator 
+
+
+%start program
+
+%%
+program
+			: declaration_list;
+
+declaration_list
+			: declaration D 
+
+D
+			: declaration_list
+			| ;
+
+declaration
+			: variable_declaration 
+			| function_declaration
+			| structure_definition;
+
+variable_declaration
+			: type_specifier variable_declaration_list ';' 
+			| structure_declaration;
+
+variable_declaration_list
+			: variable_declaration_identifier V;
+
+V
+			: ',' variable_declaration_list 
+			| ;
+
+variable_declaration_identifier 
+			: identifier { ins(); } vdi;
+
+vdi : identifier_array_type | assignment_operator expression ; 
+
+identifier_array_type
+			: '[' initilization_params
+			| ;
+
+initilization_params
+			: integer_constant ']' initilization
+			| ']' string_initilization;
+
+initilization
+			: string_initilization
+			| array_initialization
+			| ;
+
+type_specifier 
+			: INT | CHAR | FLOAT | DOUBLE 
+			| LONG long_grammar 
+			| SHORT short_grammar
+			| UNSIGNED unsigned_grammar 
+			| SIGNED signed_grammar
+			| VOID ;
+
+unsigned_grammar 
+			: INT | LONG long_grammar | SHORT short_grammar | ;
+
+signed_grammar 
+			: INT | LONG long_grammar | SHORT short_grammar | ;
+
+long_grammar 
+			: INT | ;
+
+short_grammar 
+			: INT | ;
+
+structure_definition
+			: STRUCT identifier { ins(); } '{' V1  '}' ';';
+
+V1 : variable_declaration V1 | ;
+
+structure_declaration 
+			: STRUCT identifier variable_declaration_list;
+
+
+function_declaration
+			: function_declaration_type function_declaration_param_statement;
+
+function_declaration_type
+			: type_specifier identifier '('  { ins();};
+
+function_declaration_param_statement
+			: params ')' statement;
+
+params 
+			: parameters_list | ;
+
+parameters_list 
+			: type_specifier parameters_identifier_list;
+
+parameters_identifier_list 
+			: param_identifier parameters_identifier_list_breakup;
+
+parameters_identifier_list_breakup
+			: ',' parameters_list 
+			| ;
+
+param_identifier 
+			: identifier { ins(); } param_identifier_breakup;
+
+param_identifier_breakup
+			: '[' ']'
+			| ;
+
+statement 
+			: expression_statment | compound_statement 
+			| conditional_statements | iterative_statements 
+			| return_statement | break_statement 
+			| variable_declaration;
+
+compound_statement 
+			: '{' statment_list '}' ;
+
+statment_list 
+			: statement statment_list 
+			| ;
+
+expression_statment 
+			: expression ';' 
+			| ';' ;
+
+conditional_statements 
+			: IF '(' simple_expression ')' statement conditional_statements_breakup;
+
+conditional_statements_breakup
+			: ELSE statement
+			| ;
+
+iterative_statements 
+			: WHILE '(' simple_expression ')' statement 
+			| FOR '(' expression ';' simple_expression ';' expression ')' 
+			| DO statement WHILE '(' simple_expression ')' ';';
+
+return_statement 
+			: RETURN return_statement_breakup;
+
+return_statement_breakup
+			: ';' 
+			| expression ';' ;
+
+break_statement 
+			: BREAK ';' ;
+
+string_initilization
+			: assignment_operator string_constant { insV(); };
+
+array_initialization
+			: assignment_operator '{' array_int_declarations '}';
+
+array_int_declarations
+			: integer_constant array_int_declarations_breakup;
+
+array_int_declarations_breakup
+			: ',' array_int_declarations 
+			| ;
+
+expression 
+			: mutable expression_breakup
+			| simple_expression ;
+
+expression_breakup
+			: assignment_operator expression 
+			| addition_assignment_operator expression 
+			| subtraction_assignment_operator expression 
+			| multiplication_assignment_operator expression 
+			| division_assignment_operator expression 
+			| modulo_assignment_operator expression 
+			| increment_operator 
+			| decrement_operator ;
+
+simple_expression 
+			: and_expression simple_expression_breakup;
+
+simple_expression_breakup 
+			: OR_operator and_expression simple_expression_breakup | ;
+
+and_expression 
+			: unary_relation_expression and_expression_breakup;
+
+and_expression_breakup
+			: AND_operator unary_relation_expression and_expression_breakup
+			| ;
+
+unary_relation_expression 
+			: exclamation_operator unary_relation_expression 
+			| regular_expression ;
+
+regular_expression 
+			: sum_expression regular_expression_breakup;
+
+regular_expression_breakup
+			: relational_operators sum_expression 
+			| ;
+
+relational_operators 
+			: greaterthan_assignment_operator | lessthan_assignment_operator | greaterthan_operator 
+			| lessthan_operator | equality_operator | inequality_operator ;
+
+sum_expression 
+			: sum_expression sum_operators term 
+			| term ;
+
+sum_operators 
+			: add_operator 
+			| subtract_operator ;
+
+term
+			: term MULOP factor 
+			| factor ;
+
+MULOP 
+			: multiplication_operator | division_operator | modulo_operator ;
+
+factor 
+			: immutable | mutable ;
+
+mutable 
+			: identifier 
+			| mutable mutable_breakup;
+
+mutable_breakup
+			: '[' expression ']' 
+			| '.' identifier;
+
+immutable 
+			: '(' expression ')' 
+			| call | constant;
+
+call
+			: identifier '(' arguments ')';
+
+arguments 
+			: arguments_list | ;
+
+arguments_list 
+			: expression A;
+
+A
+			: ',' expression A 
+			| ;
+
+constant 
+			: integer_constant 	{ insV(); } 
+			| string_constant	{ insV(); } 
+			| float_constant	{ insV(); } 
+			| character_constant{ insV(); };
+
+%%
+
+extern FILE *yyin;
+extern int yylineno;
+extern char *yytext;
+void insertSTtype(char *,char *);
+void insertSTvalue(char *, char *);
+void incertCT(char *, char *);
+void printST();
+void printCT();
+
+int main(int argc , char **argv)
+{
+	yyin = fopen(argv[1], "r");
+	yyparse();
+
+	if(flag == 0)
+	{
+		printf(ANSI_COLOR_GREEN "Status: Parsing Complete - Valid" ANSI_COLOR_RESET "\n");
+		printf("%30s" ANSI_COLOR_CYAN "SYMBOL TABLE" ANSI_COLOR_RESET "\n", " ");
+		printf("%30s %s\n", " ", "------------");
+		printST();
+
+		printf("\n\n%30s" ANSI_COLOR_CYAN "CONSTANT TABLE" ANSI_COLOR_RESET "\n", " ");
+		printf("%30s %s\n", " ", "--------------");
+		printCT();
+	}
+}
+
+void yyerror(char *s)
+{
+	printf("%d %s %s\n", yylineno, s, yytext);
+	flag=1;
+	printf(ANSI_COLOR_RED "Status: Parsing Failed - Invalid\n" ANSI_COLOR_RESET);
+}
+
+void ins()
+{
+	insertSTtype(curid,curtype);
+}
+
+void insV()
+{
+	insertSTvalue(curid,curval);
+}
+
+int yywrap()
+{
+	return 1;
+}
